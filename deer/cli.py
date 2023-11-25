@@ -1,10 +1,9 @@
-import json
 import os
-import typer
-
-from add import add_bib_entry, add_pdf
-from git import Repo
 from typing import Optional
+
+import typer
+from add import add_bib_entry
+from git import Repo
 
 app = typer.Typer()
 
@@ -14,12 +13,13 @@ def init():
     # 1) git init
     print("initializing git repo...")
     Repo.init(".")
-    # 2) add dirs: pdfs, notes, bib_files
+    # 2) add dirs for pdfs and md notes
     print("initializing data directory...")
     os.makedirs("./data/pdf", exist_ok=True)
     os.makedirs("./data/md", exist_ok=True)
-    with open("./data/db.json", 'w') as fp:
-        json.dump({}, fp)
+    # 3) if bib index file does not exist create it
+    with open("./data/index.jsonl", "a"):
+        pass
 
     print("initialization successfully completed!")
 

@@ -1,10 +1,6 @@
-import bibtexparser
-import os
-import subprocess
-import uuid
+import json
 
 from bibtex.entry import BibEntry
-from pydantic import FilePath
 from utils import read_from_editor
 
 BASE_DIR = "data"
@@ -17,21 +13,22 @@ journal = {The Annals of Statistics},
 number = {4},
 publisher = {Institute of Mathematical Statistics},
 pages = {1780 -- 1815},
-keywords = {High-dimensional detection, minimax lower bounds, planted clique, semidefinite relaxation, sparse principal component analysis, spiked covariance model},
+keywords = {High-dimensional detection, minimax lower bounds, planted clique,
+semidefinite relaxation, sparse principal component analysis, spiked covariance model},
 year = {2013},
 doi = {10.1214/13-AOS1127},
 URL = {https://doi.org/10.1214/13-AOS1127}
 }
 """
 
-DEFAULT_BOOK_BIB = """@book{wainwright_2019, 
-place={Cambridge}, 
-series={Cambridge Series in Statistical and Probabilistic Mathematics}, 
-title={High-Dimensional Statistics: A Non-Asymptotic Viewpoint}, 
-DOI={10.1017/9781108627771}, 
-publisher={Cambridge University Press}, 
-author={Wainwright, Martin J.}, 
-year={2019}, 
+DEFAULT_BOOK_BIB = """@book{wainwright_2019,
+place={Cambridge},
+series={Cambridge Series in Statistical and Probabilistic Mathematics},
+title={High-Dimensional Statistics: A Non-Asymptotic Viewpoint},
+DOI={10.1017/9781108627771},
+publisher={Cambridge University Press},
+author={Martin J. Wainwright},
+year={2019},
 collection={Cambridge Series in Statistical and Probabilistic Mathematics}}
 """
 
@@ -47,11 +44,9 @@ url={https://openreview.net/forum?id=Q38D6xxrKHe}
 
 
 def add_bib_entry():
-    bib_database = bibtexparser.parse_string(read_from_editor(DEFAULT_ARTICLE_BIB))
-    
-    print(list(bib_database.entries_dict.values()))
-    bib_entry = BibEntry(bibtex = list(bib_database.entries_dict.values())).model_dump()
-    print(bib_entry["bibtex"])
+    bib_entry = BibEntry(bibtex=read_from_editor(DEFAULT_BOOK_BIB))
+    with open("data/index.jsonl", "a") as f:
+        f.write(json.dumps(bib_entry.model_dump()))
 
 
 def add_pdf():
