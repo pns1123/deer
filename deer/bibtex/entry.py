@@ -1,25 +1,24 @@
-import hashlib
-import json
 import re
 import time
 import uuid
+from typing import Annotated, Literal, Union
 
-from datetime import datetime
+import bibtexparser
 from pydantic import (
     BaseModel,
     ConfigDict,
-    conlist,
     Field,
-    field_validator,
+    conlist,
     field_serializer,
+    field_validator,
     model_validator,
 )
-from typing import Annotated, Literal, Union
 
 
-def check_author_format(author_field: str):
+def check_author_field(author_field: str):
     pattern = re.compile(r"(?:\w+\s+and\s+)*\w+(?:\s+\w+)*")
-    exception_msg = "The author field has to be of the form: NAME and NAME and ... and NAME where NAME can consist of multiple parts sperated by a whitespace"
+    exception_msg = """The author field has to be of the form: NAME and NAME and
+    ... and NAME where NAME can consist of multiple parts sperated by a whitespace"""
     if not pattern.fullmatch(author_field):
         raise ValueError(exception_msg)
     return author_field
@@ -28,29 +27,6 @@ def check_author_format(author_field: str):
 def extract_last_names(author_field: str) -> list[str]:
     return [name.split(" ")[-1] for name in author_field.split(" and ")]
 
-
-#class BibData(BaseModel):
-#    @model_validator(mode="before")
-#    @classmethod
-#    def transform_field_list_to_dict(cls, entry):
-#        ret = {
-#            "bibtex": {
-#                BibData.__strip_newline_prefix(field.key): field.value
-#                for field in entry.fields
-#            },
-#            "entry_type": entry.entry_type
-#        }
-#        print(ret)
-#        return ret
-#
-#    model_config = ConfigDict(
-#        extra="allow",
-#    )
-#
-#    @staticmethod
-#    def __strip_newline_prefix(s: str):
-#        return s[2:] if s.startswith("\\n") else s
-#
 
 class Article(BaseModel):
     author: Annotated[str, Field(strict=True, min_length=1)]
@@ -63,8 +39,8 @@ class Article(BaseModel):
     note: str | None = None
 
     @field_validator("author", mode="after")
-    def check_author_format(cls, author_field):
-        return check_author_format(author_field)
+    def check_author_field(cls, author_field):
+        return check_author_field(author_field)
 
     def construct_key(self):
         return "_".join(
@@ -90,8 +66,8 @@ class Book(BaseModel):
     isbn: str | None = None
 
     @field_validator("author")
-    def check_author_format(cls, author_field):
-        return check_author_format(author_field)
+    def check_author_field(cls, author_field):
+        return check_author_field(author_field)
 
     def construct_key(self):
         return "_".join(
@@ -120,8 +96,8 @@ class InProceedings(BaseModel):
     note: str | None = None
 
     @field_validator("author")
-    def check_author_format(cls, author_field):
-        return check_author_format(author_field)
+    def check_author_field(cls, author_field):
+        return check_author_field(author_field)
 
     def construct_key(self):
         return "_".join(
@@ -142,7 +118,12 @@ class BibEntry(BaseModel):
         int, Field(strict=True, gt=0, default_factory=lambda: int(time.time()))
     ]
     entry_type: EntryType | None = None
+    key: Annotated[str, Field(min_lenght=1)]
     bibtex: conlist(Union[Article, Book, InProceedings], min_length=1, max_length=1)
+
+    model_config = ConfigDict(
+        extra="allow",
+    )
 
     @field_serializer("id")
     def serializer_id(self, id):
@@ -151,30 +132,52 @@ class BibEntry(BaseModel):
     @field_serializer("bibtex")
     def serialize_bibtex(self, bibtex):
         # return bibtex[0].model_dump()
-        return f"@{self.entry_type}" + "{" + BibEntry._dict_to_bibtex( 
-            {key: val for key, val in bibtex[0].model_dump().items() if val is not None} 
-        ) + "}"
+        return (
+            f"@{self.entry_type}"
+            + "{"
+            + f"{self.key},\n"
+            + BibEntry._dict_to_bibtex(
+                {
+                    key: val
+                    for key, val in bibtex[0].model_dump().items()
+                    if val is not None
+                }
+            )
+            + "}"
+        )
 
     def _dict_to_bibtex(bib_dict):
         return "\n".join([f"{key}={{{val}}}" for key, val in bib_dict.items()])
 
-
     @model_validator(mode="before")
     @classmethod
-    def transform_field_list_to_dict(cls, entry_dict):
-        entry = entry_dict["bibtex"][0]
+    def transform_field_list_to_dict(cls, bibtex_input: str):
+        entry = list(bibtexparser.parse_string(bibtex_input).entries_dict.values())[0]
+        # print(dir(entry_dict))
+
+        # entry = entry_dict["bibtex"][0]
+        bib_dict = {
+            BibEntry.__strip_newline_prefix(field.key): field.value
+            for field in entry.fields
+        }
         ret = {
-            "bibtex": [{
-                BibEntry.__strip_newline_prefix(field.key): field.value
-                for field in entry.fields
-            }],
-            "entry_type": entry.entry_type
+            "bibtex": [bib_dict],
+            "entry_type": entry.entry_type,
+            "key": BibEntry._construct_key(
+                bib_dict["author"], bib_dict["year"], bib_dict["title"]
+            ),
         }
         return ret
 
-    model_config = ConfigDict(
-        extra="allow",
-    )
+    @staticmethod
+    def _construct_key(author: str, year: int, title: str) -> str:
+        return "_".join(
+            [
+                *extract_last_names(author)[:2],
+                str(year),
+                *title.split(" ")[:3],
+            ]
+        )
 
     @staticmethod
     def __strip_newline_prefix(s: str):
