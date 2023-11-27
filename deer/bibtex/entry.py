@@ -14,9 +14,12 @@ from pydantic import (
     model_validator,
 )
 
+_AUTHOR_RE = r"\b(?:[A-Z][a-z.'-]*\s*)*[A-Z][a-z.'-]*\b"
+
 
 def check_author_field(author_field: str):
-    pattern = re.compile(r"(?:\w+\s+and\s+)*\w+(?:\s+\w+)*")
+    pattern = re.compile(_AUTHOR_RE + r"(?:\s*and\s*" + _AUTHOR_RE + r")*")
+
     exception_msg = """The author field has to be of the form: NAME and NAME and
     ... and NAME where NAME can consist of multiple parts sperated by a whitespace"""
     if not pattern.fullmatch(author_field):
@@ -118,7 +121,7 @@ class BibEntry(BaseModel):
         int, Field(strict=True, gt=0, default_factory=lambda: int(time.time()))
     ]
     entry_type: EntryType | None = None
-    key: Annotated[str, Field(min_lenght=1)]
+    key: Annotated[str, Field(min_length=1)]
     bibtex: conlist(Union[Article, Book, InProceedings], min_length=1, max_length=1)
 
     model_config = ConfigDict(
